@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ColorTouch · Diagnostics</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/adjustments.css"></head>
+<body>
+<aside class="sidebar">
+ <a class="brand" href="/" aria-label="ColorTouch Diagnostics home"><span class="brandmark">c<span>t</span></span><span>ColorTouch<small>ENGINEERING DIAGNOSTICS</small></span></a>
+ <button id="new-case" class="new-case"><span>＋</span> New investigation <kbd>N</kbd></button>
+ <div class="section-label">WORKSPACE</div>
+ <button class="nav active" id="investigate-nav"><span>⌕</span> Investigate</button>
+ <button class="nav" id="knowledge-nav"><span>▤</span> Knowledge base <span id="repo-count" class="count">—</span></button>
+ <div class="section-label recent-label">SAVED INVESTIGATIONS <span id="case-count">0</span></div>
+ <div id="case-list" class="case-list"><p class="muted empty-list">Your investigations will appear here.</p></div>
+ <div class="sidebar-bottom"><span class="local-dot"></span><div>Local workspace<small>Evidence stays on this computer</small></div><span class="avatar">E</span></div>
+</aside>
+<div class="workspace">
+ <header><div class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb-title">New investigation</strong></div><div class="header-tools"><span class="pill"><i></i> Local search</span><button id="save-case" class="button ghost">Save investigation</button></div></header>
+ <div class="workspace-grid">
+ <main>
+  <div class="eyebrow">ENGINEERING WORKSPACE <span>01 / INVESTIGATE</span></div>
+  <div class="heading-row"><div><h1>Start with a question.<br><span>Follow the evidence.</span></h1><p class="intro">Search the ColorTouch knowledge base and bring the<br class="desktop-break"> right context into your investigation.</p></div><div class="compass" aria-hidden="true">✳</div></div>
+  <section class="composer" aria-label="Investigation question">
+   <label for="question" class="sr-only">Engineering question</label><textarea id="question" maxlength="8000" placeholder="Ask about a symptom, error message, workflow, or code symbol…"></textarea>
+   <div class="composer-controls"><span>⌕ <span id="scope-label">Search your knowledge base</span></span><button class="button primary" id="search">Search evidence <span>↗</span></button></div>
+  </section>
+  <div class="filters"><label>Sources <select id="kind"><option value="all">All sources</option><option value="confluence">Confluence</option><option value="code">Source code</option><option value="log">Case logs</option></select></label><label>Repository <select id="repo"><option value="">All repositories</option></select></label><span class="keyboard-hint">Ctrl + Enter to search</span></div>
+  <div id="notice" class="notice hidden" role="status"></div>
+  <section id="welcome">
+   <div class="section-label">A GOOD PLACE TO START</div>
+   <div class="suggestions"><button data-question="AMR reconciliation anesthesia waste transfer missing items">Investigate a workflow <span>↗</span><small>AMR waste and transfer transactions</small></button><button data-question="DeviceSecure MedChill latch lid closed">Trace a hardware event <span>↗</span><small>MedChill lid and latch behavior</small></button><button data-question="syringe label printing barcode dispensing alerts">Find a related investigation <span>↗</span><small>Syringe labels and barcode printing</small></button></div>
+   <div class="workflow"><span class="step-number">1</span><div>Ask a question<small>Include symptoms or exact log phrases.</small></div><span class="flow-line"></span><span class="step-number">2</span><div>Inspect the evidence<small>Open code, documents, and case logs.</small></div><span class="flow-line"></span><span class="step-number">3</span><div>Save your context<small>Continue the investigation later.</small></div></div>
+  </section>
+  <section id="results-section" class="hidden"><div class="results-heading"><div><h2>Retrieved evidence <span id="result-count"></span></h2><p id="search-summary"></p></div><button id="export" class="button ghost">↓ Evidence packet</button></div><div class="version-note" id="version-note">Code reflects indexed checkouts. Verify the affected release before drawing conclusions.</div><div id="results"></div></section>
+  <section class="case-context"><div class="context-heading"><h2>Investigation context</h2><span>OPTIONAL</span></div><p>Add a report or attach logs to keep the evidence together.</p><div class="context-fields"><label>Investigation title<input id="case-title" maxlength="160" placeholder="e.g. Missing AMR transactions"></label><label>Affected version<input id="version" placeholder="e.g. CT 29.5.13.29"></label></div><label>Escalation URL <span class="muted">· reference only in this version</span><input id="source-url" type="url" placeholder="https://…/_workitems?id=782381"></label><label>Description or engineering notes<textarea id="description" placeholder="Paste the issue description, reproduction steps, or observations…"></textarea></label><div class="attachment-controls"><label class="button ghost upload-label" for="logs">＋ Add logs or ZIP<input type="file" id="logs" multiple accept=".log,.txt,.json,.xml,.md,.csv,.zip"></label><span>20 MB per file · text and ZIP</span></div><div id="log-list"></div><div id="history"></div></section>
+  <footer>ColorTouch Diagnostics <span>Evidence first. Conclusions second.</span></footer>
+ </main>
+ <aside class="evidence-panel">
+  <div class="panel-heading"><span>▤</span><h2>Evidence & sources</h2><span class="live-label">LOCAL</span></div>
+  <div class="coverage"><div class="section-label">KNOWLEDGE COVERAGE</div><div class="coverage-row"><span class="source-icon docs">▤</span><div>Confluence exports<small>Local PDF text · page citations</small></div><span class="tag">PDF</span></div><div class="coverage-row"><span class="source-icon code">⌘</span><div>ColorTouch source<small id="code-coverage">Repositories waiting for index</small></div><span class="tag">GIT</span></div><div class="coverage-row"><span class="source-icon logs">≋</span><div>Investigation logs<small id="logs-coverage">No logs added to this case</small></div><span class="tag">CASE</span></div></div>
+  <div class="index-card"><div><span class="status-dot" id="index-dot"></span><strong id="index-title">Checking knowledge base</strong></div><p id="index-detail">Loading local index status…</p><button id="build-index" class="button ghost">Build knowledge index</button></div>
+  <div id="evidence-detail" class="evidence-detail"><div class="empty-evidence"><span>⌕</span><h3>Every finding starts here.</h3><p>Select a search result to inspect its source, location, and full excerpt.</p></div></div>
+  <div class="model-card"><span class="model-icon">✧</span><div><strong>LLM connection comes next</strong><p>Search and evidence export are ready to use. Generated answers are not enabled.</p></div></div>
+ </aside>
+ </div>
+</div>
+<dialog id="knowledge-dialog"><div class="dialog-heading"><div><div class="eyebrow">LOCAL SNAPSHOTS</div><h2>Knowledge base</h2></div><button id="close-knowledge" aria-label="Close knowledge base">×</button></div><p>Search uses keyword ranking with code identifier splitting. It does not use embeddings or claim semantic similarity.</p><div id="knowledge-detail"></div><p class="muted">PDF images and scanned pages require OCR and are not searched. Live Confluence sync, escalation collection, historical release search, and LLM answers are not connected in this version.</p></dialog>
+<script src="/app.js" defer></script>
+</body></html>

@@ -1,0 +1,7 @@
+source-colortouch/
+.triage/
+__pycache__/
+*.pyc
+.env
+.venv/
+escalations/

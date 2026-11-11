@@ -3,13 +3,15 @@ import argparse
 import base64
 import json
 import mimetypes
+import os
 import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from triage import ROOT, KnowledgeBase, Investigations, evidence_packet
+from triage import ROOT, evidence_packet
+from postgres_store import KnowledgeBase, Investigations, Postgres
 
 
 def make_handler(kb, investigations):
@@ -36,7 +38,9 @@ def make_handler(kb, investigations):
             expected = f'127.0.0.1:{self.server.server_port}'
             host = self.headers.get('Host', '')
             origin = self.headers.get('Origin')
-            return host == expected and (not origin or origin == 'http://' + expected)
+            permitted={expected,f'localhost:{self.server.server_port}'}
+            permitted.update(filter(None,os.getenv('TRIAGE_ALLOWED_HOSTS','').split(',')))
+            return host in permitted and (not origin or origin=='http://'+host or origin=='https://'+host)
 
         def do_GET(self):
             if not self.allowed():
@@ -53,14 +57,18 @@ def make_handler(kb, investigations):
                     return self.send({**case, 'logs': investigations.logs(case['id'])})
                 if route.path == '/api/evidence':
                     return self.send(kb.evidence(query.get('id', [''])[0]))
-                assets = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/adjustments.css': 'adjustments.css'}
-                if route.path in assets:
-                    path = ROOT / 'web' / assets[route.path]
-                    types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css'}
-                    return self.send(path.read_bytes(), content_type=types[path.suffix] + '; charset=utf-8')
+                static_root=(ROOT/'frontend'/'dist'/'frontend'/'browser').resolve()
+                path=(static_root/route.path.lstrip('/')).resolve() if route.path!='/' else static_root/'index.html'
+                if path.is_relative_to(static_root) and path.is_file():
+                    types={'.html':'text/html','.js':'text/javascript','.css':'text/css'}
+                    return self.send(path.read_bytes(),content_type=types.get(path.suffix,mimetypes.guess_type(path)[0] or 'application/octet-stream'))
+                if route.path=='/':
+                    return self.send({'error':'Angular build missing. Run pnpm --dir frontend build.'},503)
                 self.send({'error': 'Not found'}, 404)
             except (ValueError, OSError) as error:
                 self.send({'error': str(error)}, 400)
+            except Exception:
+                self.send({'error':'Database or local service unavailable. Check PostgreSQL and server availability.'},503)
 
         def do_POST(self):
             if not self.allowed() or self.headers.get('X-Triage-Request') != '1':
@@ -107,14 +115,18 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--index', action='store_true', help='Build index and exit')
     args = parser.parse_args()
-    kb = KnowledgeBase()
+    try:
+        store=Postgres()
+        kb=KnowledgeBase(store=store)
+    except Exception:
+        raise SystemExit('PostgreSQL setup failed. Check DATABASE_URL and database availability; credentials were not logged.')
     if args.index:
         kb.start_index()
         while kb.status()['running']:
             threading.Event().wait(1)
         print(json.dumps(kb.status(), indent=2))
         raise SystemExit(0 if kb.status()['phase'] == 'Ready' else 1)
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(kb, Investigations()))
+    server = ThreadingHTTPServer((os.getenv('TRIAGE_HOST','127.0.0.1'), args.port), make_handler(kb, Investigations(store=store)))
     print(f'ColorTouch Diagnostics: http://127.0.0.1:{args.port}', flush=True)
     try:
         server.serve_forever()

@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:18-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-triage}
+      POSTGRES_DB: ${POSTGRES_DB:-triage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build: .
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-triage}
+      PGDATABASE: ${POSTGRES_DB:-triage}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      TRIAGE_HOST: 0.0.0.0
+      TRIAGE_ALLOWED_HOSTS: ${TRIAGE_ALLOWED_HOSTS:-}
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./.triage:/app/.triage
+      - ./escalations:/app/escalations
+      - ./source-colortouch:/app/source-colortouch:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres-data:

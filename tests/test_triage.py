@@ -137,9 +137,6 @@ class ServerTests(unittest.TestCase):
             try:
                 status = json.load(urllib.request.urlopen(base+'/api/status'))
                 self.assertFalse(status['model']['connected'])
-                javascript = urllib.request.urlopen(base+'/app.js')
-                self.assertIn('text/javascript', javascript.headers['Content-Type'])
-                javascript.close()
                 body = json.dumps({'title':'Saved from API','question':'AMR'}).encode()
                 request = urllib.request.Request(base+'/api/investigation', data=body, headers={'Content-Type':'application/json','X-Triage-Request':'1'})
                 saved = json.load(urllib.request.urlopen(request))

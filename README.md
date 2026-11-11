@@ -1,101 +1,152 @@
 # ColorTouch Diagnostics
 
-A single-user diagnostic workspace that searches local Confluence PDF exports,
-ColorTouch source checkouts, and investigation-specific text logs. It runs on
-this Windows computer and does not send evidence to an external service.
+An Angular engineering investigation workspace backed by a Python JSON API
+and PostgreSQL 18. Search local Confluence PDF exports, source checkouts, and
+case-specific logs; inspect citations and save investigation context.
 
-## Run
+## Current stack
 
-From this project folder in PowerShell:
+- Angular 22, TypeScript 6, standalone components, signals, Forms and HttpClient.
+- Python 3.12 API using the existing single-user HTTP server.
+- PostgreSQL via Psycopg 3: JSONB investigations and metadata, full-text
+  tsvectors, a GIN search index, and ts_rank_cd ranking.
+- pypdf for offline PDF text extraction.
+- Docker Compose deployment layout and GitHub Actions build/test workflow.
 
-```powershell
-.\start.ps1
-```
+LLM answers, live Confluence/TFS collection, embeddings, and multi-user
+authentication are still deferred. Source and PDF images are not OCR'd.
+Affected versions are context, not an automatic historical-release filter.
 
-Open **http://127.0.0.1:8765** and choose **Build knowledge index** the first time.
-The launcher uses the bundled Codex Python runtime when present. Otherwise,
-install Python 3.11+ and run `python -m pip install -r requirements.txt`.
-The only nonstandard Python dependency is `pypdf`.
+## Recommended deployment: Docker Compose
 
-To build the index before starting the server:
+GitHub stores application code and runs CI. A company server or cloud machine
+runs these containers; GitHub Pages cannot execute the Python/PostgreSQL app.
 
-```powershell
-.\start.ps1 --index
-.\start.ps1
-```
+1. Install Docker with Compose on the deployment machine.
+2. Copy .env.example to .env and replace POSTGRES_PASSWORD with a strong secret.
+   Do not commit .env. Compose passes PostgreSQL connection values separately,
+   so passwords containing URL-reserved characters do not break its connection.
+3. Provide the escalations/ and source-colortouch/ knowledge folders.
+4. Run:
 
-Use `--port 8766` to select another port. The server binds only to `127.0.0.1`.
-Stop it with Ctrl+C. The runtime is not installed as a Windows service.
-If a background instance is already running, reuse its local URL rather than
-starting a second instance on the same port. The initial background launch PID
-is recorded in `.triage/server.pid`.
+    docker compose up -d --build
 
-## Working features
+Open http://127.0.0.1:8765. The default is local access only. A team deployment
+needs company sign-in and an HTTPS reverse proxy; configure the expected host
+in TRIAGE_ALLOWED_HOSTS. This repository does not provision those services.
+Do not expose the app publicly as an authenticated team service yet.
 
-- Questions and keyword/code-symbol searches using SQLite FTS5 and BM25
-  keyword ranking, English stemming, identifier splitting, and a small explicit
-  vocabulary expansion. This version does **not** use semantic embeddings.
-- Confluence PDF text with document/page citations and source-page links from
-  `escalations/index.csv`. The PDFs are offline exports, not live Confluence.
-- Source excerpts with file/line citations, repository, branch, and Git commit.
-  Code is read from `source-colortouch/`; originals are not modified.
-- Filter by source type and repository; inspect a complete retrieved excerpt.
-- Save investigations, descriptions, affected versions, reference URLs, and a
-  history of questions. A saved question can be rerun against the current index.
-- Upload text/CSV/JSON/XML logs and ZIP archives. ZIP contents are read without
-  extracting or executing files; size and path limits apply. Case logs are only
-  searched inside their own investigation.
-- Download a Markdown evidence packet containing the question, context,
-  citations, retrieved text, and known evidence limitations.
-- Background index rebuilds retain the previous index until the replacement is
-  ready. Refresh after updating PDF exports or repository checkouts.
+PostgreSQL data persists in a named Docker volume. Logs and offline knowledge
+are bind-mounted from the project; source-colortouch is read only. The runtime
+user (UID 10001) needs write permission to .triage and escalations. Docker build
+context explicitly excludes evidence, logs, source checkouts, local databases,
+and credentials.
 
-## Current boundaries
+Docker containers have not been run on the current Windows machine because
+Docker is not installed. The PostgreSQL engine, API and Angular build are
+validated locally.
 
-As requested, this first implementation prioritizes local search. **No LLM is
-connected and no generated answer or root cause conclusion is produced.**
-Choosing OpenAI, company Azure OpenAI, or another approved provider is a later
-integration; no credentials are required for the current features.
+## Local development
 
-Escalation URLs are stored as references. Automatic TFS intake, attachment
-downloads, recursive linked-page collection, and live Confluence sync are not
-implemented in the app yet. The chat workflow in `AGENTS.md` remains available
-for those collection tasks. Paste a description or upload logs to investigate
-them in this version. Code search uses indexed working checkouts, not every
-branch/tag. An affected-version entry is context, **not** a release filter.
-Use the displayed branch and commit to verify applicability. Commit links are
-valid for clean tracked files; local edits/untracked files may differ from HEAD.
+Install Python 3.11+, Node 24, pnpm 11 and PostgreSQL 18, then:
 
-PDF extraction does not include images, scanned pages, or OCR. Code indexing
-excludes dependency/build directories, minified/generated files, symbolic links,
-and text files larger than 512 KB. Excerpts are capped at 10,000 characters;
-truncation is labeled. Index errors and skipped oversized files are shown in
-the Knowledge base panel. Search results are leads, not confidence scores.
+    python -m venv .venv
+    .venv/Scripts/python -m pip install -r requirements.txt
+    pnpm --dir frontend install --frozen-lockfile
+    pnpm --dir frontend build
 
-## Local data
+Set DATABASE_URL in an ignored .env using .env.example as a template. For a
+company server, use its required TLS connection options. The backend also
+accepts standard PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE variables.
 
-- `.triage/knowledge.sqlite`: searchable excerpt snapshots (Git ignored).
-- `.triage/investigations.sqlite`: saved investigation context/history.
-- `.triage/index-status.json`: index status, coverage, and extraction errors.
-- `escalations/<investigation-id>/logs/`: original uploads (Git ignored), named
-  with a content hash to avoid overwrites. IDs are local investigation IDs.
-- Browser downloads: exported Markdown evidence packets.
+Start the API and built Angular UI:
 
-There is no multi-user authentication. This is a loopback-only local tool,
-not a team server. The application does not post to TFS or modify source code.
+    ./start.ps1
 
-## Checks
+Open http://127.0.0.1:8765. Stop a foreground instance with Ctrl+C. A background
+instance's PID is in .triage/server.pid. Avoid starting two instances on the
+same port.
 
-```powershell
-python -m unittest discover -s tests -v
-```
+For Angular development, start the API and then:
 
-Tests cover retrieval metadata/filtering, safe query handling, snapshot behavior,
-index failure recovery, persistent investigations, log isolation, ZIP handling,
-and local HTTP origin restrictions.
+    pnpm --dir frontend start
 
-## Implementation
+The Angular development server proxies /api to http://127.0.0.1:8765.
+The production Python server serves frontend/dist/frontend/browser.
 
-`app.py` serves the UI and JSON API; `triage.py` handles retrieval and local
-persistence; `web/` contains the browser interface. No npm or JavaScript build
-step is required.
+### Optional project-local PostgreSQL on Windows
+
+This workspace has official PostgreSQL binaries under ignored
+.tools/postgresql/pgsql. setup_local_postgres.py initializes a cluster in
+.triage/pgdata and generates credentials in ignored .env. It does not install
+a Windows service and does not print the password:
+
+    .venv/Scripts/python setup_local_postgres.py
+
+It listens only on 127.0.0.1:54329. Run the same helper after reboot to restart
+the cluster. Fresh clones do not contain these binaries; use Docker Compose
+or install PostgreSQL separately. The helper refuses to overwrite an existing
+.env when creating a new cluster.
+
+## Migrating the previous SQLite version
+
+With PostgreSQL configured, run:
+
+    .venv/Scripts/python migrate_sqlite.py
+
+For Compose, with the old .triage folder mounted:
+
+    docker compose exec app python migrate_sqlite.py
+
+The migration:
+- Opens legacy SQLite databases read only and leaves them unchanged.
+- Copies excerpt IDs, citations, code versions and saved case histories.
+- Rebuilds PostgreSQL search vectors from original excerpt text.
+- Publishes the new active index and the import marker in one transaction.
+- Does not replace an existing active PostgreSQL index.
+- Is idempotent after a successful import and preserves subsequent edits.
+
+Original log files remain under escalations/<investigation-id>/logs; they are
+not duplicated into the database. The migration was run successfully for the
+existing local corpus and saved investigation.
+
+The old triage.py SQLite classes and recover_index.py/repair_index.py remain
+for legacy recovery and migration regression tests. The running API uses
+postgres_store.py and does not fall back to SQLite.
+
+## Search and evidence
+
+Use questions, keywords, or code symbols. Filters support repository and source
+type. Citations contain file lines or PDF pages plus branch/commit metadata.
+Results are evidence leads, not confidence scores or generated conclusions.
+
+Uploaded text, CSV, JSON, XML and ZIP logs stay scoped to their investigation.
+Archives are inspected without extracting or executing files. Upload size is
+20 MB/file; ZIP expansion limits are enforced.
+
+Refresh knowledge index after updating source checkouts or PDF exports.
+PostgreSQL builds a new generation and publishes it only after success. The
+previous generation stays available on failure. Prior generations are retained
+for rollback and require a future retention policy for frequent large rebuilds.
+
+Code indexing excludes dependency/build directories, minified/generated files,
+symlinks and files over 512 KB. Excerpts are capped at 10,000 characters, with
+truncation labeled. Extraction gaps are visible in the Knowledge base panel.
+
+## Tests and CI
+
+    .venv/Scripts/python -m unittest discover -s tests -v
+
+PostgreSQL integration tests require TEST_DATABASE_URL. They create and remove
+isolated test schemas, never application tables. For a local test database, set
+TEST_DATABASE_URL to that database's connection string.
+
+GitHub Actions provisions PostgreSQL 18, builds Angular and runs the complete
+test suite. It does not deploy the app or upload knowledge sources.
+
+## Repository exclusions
+
+.gitignore excludes escalations/, source-colortouch/, .triage/, .tools/,
+.env credentials, Python virtual environments, node_modules and Angular builds.
+Commit application code, schema migrations, frontend sources and its pnpm
+lockfile. Keep company source code and diagnostic evidence out of this repo.

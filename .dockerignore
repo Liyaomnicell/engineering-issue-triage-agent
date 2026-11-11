@@ -1,0 +1,15 @@
+*
+!Dockerfile
+!requirements.txt
+!app.py
+!postgres_store.py
+!triage.py
+!migrate_sqlite.py
+!migrations/
+!migrations/**
+!frontend/
+!frontend/**
+frontend/node_modules
+frontend/dist
+frontend/.angular
+frontend/.vscode
